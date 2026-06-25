@@ -2,7 +2,7 @@ import mne
 import numpy as np
 
 
-DATA_PATH = "./data"
+DATA_PATH = "/home/rben-mou/goinfre/dataset/physionet.org/files/eegmmidb/1.0.0"
 EXPERIMENT_RUNS = {
     0: [3, 7, 11],  # real left fist vs right fist
     1: [4, 8, 12],  # imagined left fist vs right fist
@@ -69,7 +69,7 @@ def load_standard_experiment(subject, runs):
         epochs = make_epochs(raw, events, eid)
         all_epochs.append(epochs)
 
-    combined = mne.concatenate_epochs(all_epochs)
+    combined = mne.concatenate_epochs(all_epochs, verbose="error")
 
     X = combined.get_data()             # (n_epochs, n_channels, n_times)
     y = combined.events[:, 2]           # 1 for T1, 2 for T2
