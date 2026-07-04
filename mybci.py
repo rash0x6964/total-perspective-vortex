@@ -7,11 +7,12 @@ import mne
 
 from mne.decoding import CSP
 from sklearn.pipeline import Pipeline
-from sklearn.svm import SVC
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 
 from preprocessing import load_experiment, EXPERIMENT_RUNS
+from wavelet import WaveletFeatures
 
 
 MODELS_DIR = "models"
@@ -20,16 +21,24 @@ TEST_SIZE = 0.2
 N_SUBJECTS = 109
 STREAM_DELAY = 2.0
 
+USE_WAVELET_PIPELINE = True
+
 
 mne.set_log_level('ERROR')
 
 
 def build_pipeline():
-    pipeline = Pipeline([
-        ('csp',     CSP(n_components=4, log=True, norm_trace=True)),
-        ('scaler',  StandardScaler()),
-        ('clf',     SVC(kernel='rbf', C=1.0))
-    ])
+    if USE_WAVELET_PIPELINE:
+        pipeline = Pipeline([
+            ('wavelet', WaveletFeatures(wavelet='db4', level=5)),
+            ('clf',     LDA())
+        ])
+    else:
+        pipeline = Pipeline([
+            ('csp', CSP(n_components=4, log=True, norm_trace=True)),
+            ('clf', LDA())
+        ])
+
     return pipeline
 
 
@@ -37,7 +46,7 @@ def train(subject, experiment, realtime=False):
     if not realtime:
         print(
             f"\nLoading data — subject {subject:03d}, experiment {experiment}...")
-    
+
     X, y = load_experiment(subject, experiment)
 
     if not realtime:

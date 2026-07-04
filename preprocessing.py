@@ -2,7 +2,8 @@ import mne
 import numpy as np
 
 
-DATA_PATH = "/home/rben-mou/goinfre/dataset/physionet.org/files/eegmmidb/1.0.0"
+DATA_PATH = "/media/rben-mou/FEDORA-WS-L/dataset/physionet.org/files/eegmmidb/1.0.0"
+# DATA_PATH = "/home/rben-mou/goinfre/dataset/physionet.org/files/eegmmidb/1.0.0"
 EXPERIMENT_RUNS = {
     0: [3, 7, 11],  # real left fist vs right fist
     1: [4, 8, 12],  # imagined left fist vs right fist
@@ -33,16 +34,32 @@ def filter_raw(raw, l_freq=8.0, h_freq=30.0):
 
 
 def get_events(raw, event_id=None):
+    events, mne_event_id = mne.events_from_annotations(raw, verbose=False)
+
     if event_id is None:
-        event_id = {'T1': 1, 'T2': 2}
+        wanted = ['T1', 'T2']
+    else:
+        wanted = list(event_id.keys())
 
-    events, _ = mne.events_from_annotations(raw, verbose=False)
+    real_codes = {name: mne_event_id[name]
+                  for name in wanted if name in mne_event_id}
 
-    # keep only T1 and T2 events
-    mask = np.isin(events[:, 2], list(event_id.values()))
+    if not real_codes:
+        raise ValueError(
+            f"None of {wanted} found in this file's annotations: {mne_event_id}"
+        )
+
+    mask = np.isin(events[:, 2], list(real_codes.values()))
     events = events[mask]
 
-    return events, event_id
+    final_event_id = {}
+    for i, name in enumerate(wanted, start=1):
+        if name in real_codes:
+            old_code = real_codes[name]
+            events[events[:, 2] == old_code, 2] = i
+            final_event_id[name] = i
+
+    return events, final_event_id
 
 
 def make_epochs(raw, events, event_id, tmin=0.0, tmax=4.0):
@@ -131,14 +148,7 @@ def visualize_raw(subject=1, run=3):
 
 
 if __name__ == "__main__":
-    print("Loading experiment 0 for subject 1...")
     X, y = load_experiment(subject=1, experiment=0)
-    print(f"X shape: {X.shape}")   # (n_epochs, 64, n_times)
-    print(f"y shape: {y.shape}")   # (n_epochs,)
-    print(f"Classes: {np.unique(y)}")
-
-    print("\nLoading experiment 4 for subject 1...")
-    X, y = load_experiment(subject=1, experiment=4)
-    print(f"X shape: {X.shape}")
-    print(f"y shape: {y.shape}")
-    print(f"Classes: {np.unique(y)}")
+    print(f"X shape:  {X.shape}")
+    print(f"Classes:  {np.unique(y)}")
+    print(f"Class 1:  {np.sum(y == 1)}, Class 2: {np.sum(y == 2)}")
