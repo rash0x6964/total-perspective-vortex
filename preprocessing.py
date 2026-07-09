@@ -28,8 +28,8 @@ def load_raw(subject, run):
     return raw
 
 
-def filter_raw(raw, l_freq=8.0, h_freq=30.0):
-    raw.filter(l_freq, h_freq, fir_window='hamming', verbose=False)
+def filter_raw(raw, l_freq=7.0, h_freq=30.0):
+    raw.filter(l_freq, h_freq, fir_design="firwin", skip_by_annotation="edge", verbose=False)
     return raw
 
 
@@ -62,7 +62,7 @@ def get_events(raw, event_id=None):
     return events, final_event_id
 
 
-def make_epochs(raw, events, event_id, tmin=0.0, tmax=4.0):
+def make_epochs(raw, events, event_id, tmin=0.5, tmax=4.5):
     epochs = mne.Epochs(
         raw,
         events,

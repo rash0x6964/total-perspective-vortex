@@ -1,15 +1,16 @@
-import sys
 import os
+import sys
 import time
-import numpy as np
 import joblib
-import mne
+import numpy as np
 
+import mne
 from mne.decoding import CSP
+
 from sklearn.pipeline import Pipeline
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-from sklearn.model_selection import cross_val_score, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 
 from preprocessing import load_experiment, EXPERIMENT_RUNS
 from wavelet import WaveletFeatures
@@ -21,7 +22,7 @@ TEST_SIZE = 0.2
 N_SUBJECTS = 109
 STREAM_DELAY = 2.0
 
-USE_WAVELET_PIPELINE = True
+USE_WAVELET_PIPELINE = False
 
 
 mne.set_log_level('ERROR')
@@ -30,12 +31,13 @@ mne.set_log_level('ERROR')
 def build_pipeline():
     if USE_WAVELET_PIPELINE:
         pipeline = Pipeline([
-            ('wavelet', WaveletFeatures(wavelet='db4', level=5)),
-            ('clf',     LDA())
+            ('wavelet', WaveletFeatures()),
+            ('scaler',  StandardScaler()),
+            ('clf',     LDA(solver='lsqr', shrinkage='auto'))
         ])
     else:
         pipeline = Pipeline([
-            ('csp', CSP(n_components=4, log=True, norm_trace=True)),
+            ('csp', CSP(n_components=4, log=True, reg=None, norm_trace=False)),
             ('clf', LDA())
         ])
 
@@ -64,8 +66,7 @@ def train(subject, experiment, realtime=False):
 
     pipeline = build_pipeline()
     cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-    scores = cross_val_score(pipeline, X_train, y_train,
-                             cv=cv, scoring='accuracy')
+    scores = cross_val_score(pipeline, X_train, y_train, cv=cv, scoring='accuracy')
 
     if not realtime:
         print(f"\ncross_val_score: {np.round(scores, 4)}")

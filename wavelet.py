@@ -1,5 +1,5 @@
-import numpy as np
 import pywt
+import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 
 
@@ -20,27 +20,22 @@ def extract_features(epochs_matrix, wavelet='db4', level=5):
     all_epoch_features = []
 
     for e in range(n_epochs):
-        channel_features = []
+        epoch_features = []
 
         for ch in range(n_channels):
             signal = epochs_matrix[e, ch, :]
 
-            # get 5 level like this [A5, D5, D4, D3, D2, D1]
+            # 5-level DWT: [A5, D5, D4, D3, D2, D1]
             coeffs = pywt.wavedec(signal, wavelet, level=level)
 
-            feat = []
             for band_coeffs in coeffs:
                 energy = np.sum(np.square(band_coeffs))
                 log_energy = np.log10(energy + 1e-5)
                 std_dev = np.std(band_coeffs)
                 mav = np.mean(np.abs(band_coeffs))
-                feat.extend([log_energy, std_dev, mav])
+                epoch_features.extend([log_energy, std_dev, mav])
 
-            # 6 levels × 3 features = 18 features per channel
-            channel_features.append(feat)
+        # 64 channels × 6 levels × 3 features = 1152 features per epoch
+        all_epoch_features.append(epoch_features)
 
-        # average across all 64 channels = shape (18,)
-        epoch_features_averaged = np.mean(channel_features, axis=0)
-        all_epoch_features.append(epoch_features_averaged)
-
-    return np.array(all_epoch_features)    # shape (n_epochs, 18)
+    return np.array(all_epoch_features)    # shape (n_epochs, 1152)
