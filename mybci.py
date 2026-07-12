@@ -1,28 +1,32 @@
 import os
 import sys
+import mne
 import time
 import joblib
 import numpy as np
 
-import mne
-from mne.decoding import CSP
 
+from csp import CSP
+
+from wavelet import WaveletFeatures
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_val_score, StratifiedKFold
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+
+from lda import LDA
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 from preprocessing import load_experiment, EXPERIMENT_RUNS
-from wavelet import WaveletFeatures
+# from preprocessing_bci2a import load_experiment, EXPERIMENT_RUNS
 
 
-MODELS_DIR = "models"
+# N_SUBJECTS = 9
+N_SUBJECTS = 109
 
 TEST_SIZE = 0.2
-N_SUBJECTS = 109
 STREAM_DELAY = 2.0
-
-USE_WAVELET_PIPELINE = False
+MODELS_DIR = "models"
+USE_WAVELET_PIPELINE = True
 
 
 mne.set_log_level('ERROR')
@@ -33,11 +37,11 @@ def build_pipeline():
         pipeline = Pipeline([
             ('wavelet', WaveletFeatures()),
             ('scaler',  StandardScaler()),
-            ('clf',     LDA(solver='lsqr', shrinkage='auto'))
+            ('clf',     LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'))
         ])
     else:
         pipeline = Pipeline([
-            ('csp', CSP(n_components=4, log=True, reg=None, norm_trace=False)),
+            ('csp', CSP(n_components=4)),
             ('clf', LDA())
         ])
 
