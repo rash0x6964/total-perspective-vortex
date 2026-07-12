@@ -3,6 +3,7 @@ import sys
 import mne
 import time
 import joblib
+import argparse
 import numpy as np
 
 
@@ -16,28 +17,40 @@ from sklearn.model_selection import cross_val_score, StratifiedKFold
 from lda import LDA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
-from preprocessing import load_experiment, EXPERIMENT_RUNS
-# from preprocessing_bci2a import load_experiment, EXPERIMENT_RUNS
-
-
-# N_SUBJECTS = 9
-N_SUBJECTS = 109
 
 TEST_SIZE = 0.2
 STREAM_DELAY = 2.0
 MODELS_DIR = "models"
-USE_WAVELET_PIPELINE = True
+
+N_SUBJECTS = None
+EXPERIMENT_RUNS = None
+load_experiment = None
 
 
 mne.set_log_level('ERROR')
 
 
-def build_pipeline():
-    if USE_WAVELET_PIPELINE:
+def load_dataset(dataset):
+    if dataset == 'physionet':
+        from preprocessing import load_experiment, EXPERIMENT_RUNS
+        n_subjects = 109
+    elif dataset == 'bci2a':
+        from preprocessing_bci2a import load_experiment, EXPERIMENT_RUNS
+        n_subjects = 9
+    else:
+        print(f"Unknown dataset '{dataset}'. Use 'physionet' or 'bci2a'.")
+        sys.exit(1)
+
+    return load_experiment, EXPERIMENT_RUNS, n_subjects
+
+
+def build_pipeline(pipeline_type='csp'):
+    if pipeline_type == 'wavelet':
         pipeline = Pipeline([
             ('wavelet', WaveletFeatures()),
             ('scaler',  StandardScaler()),
-            ('clf',     LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'))
+            ('clf',     LinearDiscriminantAnalysis(
+                solver='lsqr', shrinkage='auto'))
         ])
     else:
         pipeline = Pipeline([
@@ -48,7 +61,7 @@ def build_pipeline():
     return pipeline
 
 
-def train(subject, experiment, realtime=False):
+def train(subject, experiment, realtime=False, pipeline_type='csp'):
     if not realtime:
         print(
             f"\nLoading data — subject {subject:03d}, experiment {experiment}...")
@@ -68,9 +81,10 @@ def train(subject, experiment, realtime=False):
     if not realtime:
         print(f"Train: {n_train} epochs | Test: {n_test} epochs")
 
-    pipeline = build_pipeline()
+    pipeline = build_pipeline(pipeline_type)
     cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-    scores = cross_val_score(pipeline, X_train, y_train, cv=cv, scoring='accuracy')
+    scores = cross_val_score(pipeline, X_train, y_train,
+                             cv=cv, scoring='accuracy')
 
     if not realtime:
         print(f"\ncross_val_score: {np.round(scores, 4)}")
@@ -143,13 +157,14 @@ def predict(subject, experiment):
     return accuracy
 
 
-def evaluate_all():
+def evaluate_all(pipeline_type='csp'):
     experiment_accuracies = {exp: [] for exp in EXPERIMENT_RUNS}
 
     for experiment in EXPERIMENT_RUNS:
         for subject in range(1, N_SUBJECTS + 1):
             try:
-                _, test_accuracy = train(subject, experiment, True)
+                _, test_accuracy = train(
+                    subject, experiment, True, pipeline_type)
                 experiment_accuracies[experiment].append(test_accuracy)
             except Exception as e:
                 print(
@@ -173,45 +188,63 @@ def _model_path(subject, experiment):
 
 
 def _parse_args():
-    args = sys.argv[1:]
+    parser = argparse.ArgumentParser(
+        description='BCI Motor Imagery Classification'
+    )
 
-    if len(args) == 0:
-        return None, None, 'all'
+    parser.add_argument(
+        'subject',
+        type=int,
+        nargs='?',
+        help='Subject number'
+    )
+    parser.add_argument(
+        'experiment',
+        type=int,
+        nargs='?',
+        help='Experiment number'
+    )
+    parser.add_argument(
+        'mode',
+        type=str,
+        nargs='?',
+        choices=['train', 'predict'],
+        help='Mode: train or predict'
+    )
+    parser.add_argument(
+        '--dataset',
+        type=str,
+        default='physionet',
+        choices=['physionet', 'bci2a'],
+        help='Dataset to use (default: physionet)'
+    )
+    parser.add_argument(
+        '--pipeline',
+        type=str,
+        default='csp',
+        choices=['csp', 'wavelet'],
+        help='Pipeline to use (default: csp)'
+    )
 
-    if len(args) == 3:
-        subject = int(args[0])
-        experiment = int(args[1])
-        mode = args[2].lower()
+    args = parser.parse_args()
 
-        if mode not in ('train', 'predict'):
-            print(f"Unknown mode '{mode}'. Use 'train' or 'predict'.")
-            sys.exit(1)
+    if any([args.subject, args.experiment, args.mode]):
+        if not all([args.subject, args.experiment is not None, args.mode]):
+            parser.error(
+                'subject, experiment and mode must all be provided together')
 
-        if not (1 <= subject <= N_SUBJECTS):
-            print(f"Subject must be between 1 and {N_SUBJECTS}.")
-            sys.exit(1)
-
-        if experiment not in EXPERIMENT_RUNS:
-            print(f"Experiment must be one of {list(EXPERIMENT_RUNS.keys())}.")
-            sys.exit(1)
-
-        return subject, experiment, mode
-
-    print("Usage:")
-    print("  python mybci.py                          # evaluate all")
-    print("  python mybci.py <subject> <exp> train    # train")
-    print("  python mybci.py <subject> <exp> predict  # predict")
-    sys.exit(1)
+    return args.subject, args.experiment, args.mode or 'all', args.dataset, args.pipeline
 
 
 if __name__ == "__main__":
-    subject, experiment, mode = _parse_args()
+    subject, experiment, mode, dataset, pipeline_type = _parse_args()
+    load_experiment, EXPERIMENT_RUNS, N_SUBJECTS = load_dataset(dataset)
 
     if mode == 'train':
-        train(subject, experiment)
+        train(subject, experiment, pipeline_type=pipeline_type)
 
     elif mode == 'predict':
         predict(subject, experiment)
 
     elif mode == 'all':
-        evaluate_all()
+        evaluate_all(pipeline_type)
