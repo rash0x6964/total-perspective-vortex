@@ -29,7 +29,7 @@ def load_raw(subject, run):
 
 
 def filter_raw(raw, l_freq=7.0, h_freq=30.0):
-    raw.filter(l_freq, h_freq, fir_design="firwin", skip_by_annotation="edge", verbose=False)
+    raw.filter(l_freq, h_freq, verbose=False)
     return raw
 
 
@@ -138,17 +138,26 @@ def load_experiment(subject, experiment):
         return load_realvsimagined_experiment(subject, config)
 
 
-def visualize_raw(subject=1, run=3):
+def plotting(subject=1, run=3):
     raw = load_raw(subject, run)
-    raw_copy = raw.copy()
-    raw = filter_raw(raw)
 
-    raw_copy.plot(n_channels=10, title='Before filtering', block=True)
-    raw.plot(n_channels=10, title='After filtering (8-30 Hz)', block=True)
+    montage = mne.channels.make_standard_montage('standard_1020')
+    raw.set_montage(montage, match_case=False, on_missing='ignore')
+
+    raw.plot(n_channels=10, title='Before filtering', block=True)
+
+    raw_filtered = filter_raw(raw.copy())
+
+    fig1 = raw_filtered.compute_psd(fmax=80).plot(show=False)
+    fig2 = raw_filtered.compute_psd(fmax=80).plot(show=False, average=True)
+
+    import matplotlib.pyplot as plt
+    plt.show(block=True)
 
 
 if __name__ == "__main__":
     X, y = load_experiment(subject=1, experiment=0)
+    plotting()
     print(f"X shape:  {X.shape}")
     print(f"Classes:  {np.unique(y)}")
     print(f"Class 1:  {np.sum(y == 1)}, Class 2: {np.sum(y == 2)}")
